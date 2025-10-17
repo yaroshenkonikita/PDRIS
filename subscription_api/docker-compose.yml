@@ -19,7 +19,7 @@ services:
       - "5432:5432"
 
   api:
-    image: docker.io/tokimikichika/subscription-api:latest
+    image: docker.io/${USERNAME:-tokimikichika}/subscription-api:latest
     container_name: subscription_api
     environment:
       DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@db:5432/${POSTGRES_DB:-subscriptions}
