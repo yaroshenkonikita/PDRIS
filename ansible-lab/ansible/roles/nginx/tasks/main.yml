@@ -1,0 +1,46 @@
+---
+- name: Install nginx
+  apt:
+    name: nginx
+    state: present
+    update_cache: true
+
+- name: Remove default site if exists
+  file:
+    path: /etc/nginx/sites-enabled/default
+    state: absent
+
+- name: Deploy subscription_api nginx site
+  template:
+    src: subscription_api.conf.j2
+    dest: /etc/nginx/sites-available/subscription_api.conf
+    mode: '0644'
+  notify: reload nginx
+
+- name: Enable site
+  file:
+    src: /etc/nginx/sites-available/subscription_api.conf
+    dest: /etc/nginx/sites-enabled/subscription_api.conf
+    state: link
+  notify: reload nginx
+
+- name: Ensure log dir exists
+  file:
+    path: /var/log/nginx
+    state: directory
+    mode: '0755'
+
+- name: Ensure runtime dir exists
+  file:
+    path: /run
+    state: directory
+    mode: '0755'
+
+- name: Ensure nginx started (simple direct run if not running)
+  shell: |
+    set -e
+    if [ -f /run/nginx.pid ] && ps -p "$(cat /run/nginx.pid)" >/dev/null 2>&1; then
+      nginx -t && nginx -s reload
+    else
+      nginx -t && nginx
+    fi

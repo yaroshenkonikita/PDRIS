@@ -1,0 +1,10 @@
+---
+app_name: subscription_api
+app_user: root
+app_group: root
+app_root: /opt/subscription_api
+app_port: 8000
+database_url: postgresql+psycopg2://app:app@db:5432/subscriptions
+workspace_dir: /workspace
+app_src_dir: /workspace/subscription_api
+

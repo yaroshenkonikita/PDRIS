@@ -1,0 +1,16 @@
+---
+- name: Ensure apt cache is up to date (raw)
+  raw: |
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y
+
+- name: Install python3 and dependencies (raw)
+  raw: |
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get install -y --no-install-recommends \
+      python3 python3-venv python3-pip python3-apt \
+      ca-certificates curl gnupg lsb-release bash procps build-essential libpq-dev
+
+- name: Gather facts after python install
+  setup:
+

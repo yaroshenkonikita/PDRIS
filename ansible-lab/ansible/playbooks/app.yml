@@ -1,0 +1,7 @@
+---
+- name: Deploy Subscription API only
+  hosts: app_hosts
+  gather_facts: false
+  roles:
+    - role: bootstrap
+    - role: app

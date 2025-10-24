@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+RUN_DIR="/var/run"
+PID_FILE="$RUN_DIR/{{ app_name }}.pid"
+
+if [[ -f "$PID_FILE" ]]; then
+  PID=$(cat "$PID_FILE")
+  if ps -p "$PID" >/dev/null 2>&1; then
+    kill "$PID" || true
+    sleep 1
+    if ps -p "$PID" >/dev/null 2>&1; then kill -9 "$PID" || true; fi
+  fi
+  rm -f "$PID_FILE"
+  echo "Stopped {{ app_name }}"
+else
+  echo "{{ app_name }} is not running"
+fi
+
