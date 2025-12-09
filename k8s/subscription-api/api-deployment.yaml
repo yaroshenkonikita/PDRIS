@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: subscription-api
+  namespace: subscription-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: subscription-api
+  template:
+    metadata:
+      labels:
+        app: subscription-api
+    spec:
+      initContainers:
+        - name: wait-for-db
+          image: postgres:16
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - >-
+              for i in $(seq 1 60); do
+                pg_isready -h db -p 5432 -U app -d subscriptions && exit 0;
+                echo "waiting for db..."; sleep 2;
+              done; exit 1
+      containers:
+        - name: api
+          image: docker.io/tokimikichika/subscription-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            - name: DATABASE_URL
+              value: postgresql+psycopg2://app:app@db:5432/subscriptions
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
