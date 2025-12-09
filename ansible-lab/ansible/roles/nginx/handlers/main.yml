@@ -1,0 +1,9 @@
+---
+- name: reload nginx
+  shell: |
+    set -e
+    if [ -f /run/nginx.pid ] && ps -p "$(cat /run/nginx.pid)" >/dev/null 2>&1; then
+      nginx -t && nginx -s reload
+    else
+      nginx -t && nginx
+    fi

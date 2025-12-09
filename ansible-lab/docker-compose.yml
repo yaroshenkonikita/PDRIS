@@ -1,0 +1,60 @@
+services:
+  ansible:
+    build:
+      context: ./ansible
+      dockerfile: Dockerfile
+    container_name: ansible-master
+    command: ["bash", "-lc", "sleep infinity"]
+    environment:
+      - ANSIBLE_CONFIG=/ansible/ansible.cfg
+    volumes:
+      - ./ansible:/ansible:rw
+      - ../:/workspace:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker:ro
+    depends_on:
+      - nginx
+      - app
+      - db
+    networks:
+      - lab
+
+  nginx:
+    image: ubuntu:22.04
+    container_name: nginx
+    command: ["bash", "-lc", "sleep infinity"]
+    ports:
+      - "8080:80"
+    networks:
+      - lab
+
+  app:
+    image: ubuntu:22.04
+    container_name: app
+    command: ["bash", "-lc", "sleep infinity"]
+    networks:
+      - lab
+
+  db:
+    image: postgres:16
+    container_name: db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-subscriptions}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks:
+      - lab
+
+volumes:
+  db_data:
+
+networks:
+  lab:
+    name: ansible_lab_net

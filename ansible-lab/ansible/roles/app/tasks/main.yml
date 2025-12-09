@@ -1,0 +1,56 @@
+---
+- name: Ensure app directories exist
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ app_user }}"
+    group: "{{ app_group }}"
+    mode: '0755'
+  loop:
+    - "{{ app_root }}"
+    - "/var/log/{{ app_name }}"
+
+- name: Copy application sources (app/)
+  copy:
+    src: "{{ app_src_dir }}/app/"
+    dest: "{{ app_root }}/app/"
+    mode: '0644'
+
+- name: Copy requirements.txt
+  copy:
+    src: "{{ app_src_dir }}/requirements.txt"
+    dest: "{{ app_root }}/requirements.txt"
+    mode: '0644'
+
+- name: Create venv
+  command: python3 -m venv {{ app_root }}/venv
+  args:
+    creates: "{{ app_root }}/venv/bin/python"
+
+- name: Install requirements into venv
+  shell: |
+    set -e
+    . {{ app_root }}/venv/bin/activate
+    pip install --upgrade pip
+    pip install -r {{ app_root }}/requirements.txt
+  args:
+    chdir: "{{ app_root }}"
+
+- name: Deploy run script
+  template:
+    src: run_app.sh.j2
+    dest: "{{ app_root }}/run_app.sh"
+    mode: '0755'
+
+- name: Deploy stop script
+  template:
+    src: stop_app.sh.j2
+    dest: "{{ app_root }}/stop_app.sh"
+    mode: '0755'
+
+- name: Stop app if running (idempotent)
+  shell: "{{ app_root }}/stop_app.sh || true"
+  changed_when: false
+
+- name: Start app
+  shell: "{{ app_root }}/run_app.sh"

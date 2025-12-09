@@ -1,0 +1,7 @@
+---
+- name: Setup Nginx reverse-proxy only
+  hosts: nginx_hosts
+  gather_facts: false
+  roles:
+    - role: bootstrap
+    - role: nginx
