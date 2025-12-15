@@ -5,6 +5,7 @@ RUN apt-get update \
         openssh-server \
         sudo \
         python3 \
+        python3-apt \
         ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 

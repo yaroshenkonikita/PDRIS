@@ -14,6 +14,7 @@ pipeline {
         NEXUS_CREDENTIALS_ID = "nexus_cred"
         SONAR_URL = "http://sonarqube:9000"
         SONAR_TOKEN_CREDENTIALS_ID = ""
+        SONAR_CREDENTIALS_ID = "sonar_admin"
         APP_REPO_URL = "https://github.com/yaroshenkonikita/PDRIS-app.git"
         APP_REPO_BRANCH = "main"
         GIT_CREDENTIALS_ID = ""
@@ -55,6 +56,10 @@ pipeline {
                         if (env.SONAR_TOKEN_CREDENTIALS_ID?.trim()) {
                             withCredentials([string(credentialsId: env.SONAR_TOKEN_CREDENTIALS_ID, variable: 'SONAR_TOKEN')]) {
                                 sh "mvn -B ${commonArgs} -Dsonar.token=$SONAR_TOKEN"
+                            }
+                        } else if (env.SONAR_CREDENTIALS_ID?.trim()) {
+                            withCredentials([usernamePassword(credentialsId: env.SONAR_CREDENTIALS_ID, usernameVariable: 'SONAR_USER', passwordVariable: 'SONAR_PASS')]) {
+                                sh "mvn -B ${commonArgs} -Dsonar.login=$SONAR_USER -Dsonar.password=$SONAR_PASS"
                             }
                         } else {
                             sh "mvn -B ${commonArgs}"
