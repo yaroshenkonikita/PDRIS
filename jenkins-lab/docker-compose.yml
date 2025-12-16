@@ -1,0 +1,179 @@
+x-stack-admin-password: &stack_admin_password admin123
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/app/Dockerfile
+    container_name: pdris-app-host
+    hostname: app
+    restart: unless-stopped
+    ports:
+      - "2222:22"
+    networks:
+      - lab
+
+  jenkins:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: jenkins
+    restart: unless-stopped
+    environment:
+      JENKINS_ADMIN_USER: admin
+      JENKINS_ADMIN_PASSWORD: *stack_admin_password
+      NEXUS_ADMIN_USER: admin
+      NEXUS_ADMIN_PASSWORD: *stack_admin_password
+      NEXUS_CREDENTIALS_ID: nexus_cred
+      SONAR_ADMIN_USER: admin
+      SONAR_ADMIN_PASSWORD: *stack_admin_password
+      SONAR_CREDENTIALS_ID: sonar_admin
+    ports:
+      - "8088:8080"
+      - "50000:50000"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+    depends_on:
+      - app
+      - nexus
+      - sonarqube
+    networks:
+      - lab
+
+  nexus:
+    image: sonatype/nexus3:3.73.0
+    container_name: nexus
+    restart: unless-stopped
+    environment:
+      NEXUS_SECURITY_RANDOMPASSWORD: "false"
+    ports:
+      - "8081:8081"
+    volumes:
+      - nexus_data:/nexus-data
+    networks:
+      - lab
+
+  nexus-setup:
+    image: curlimages/curl:8.5.0
+    container_name: nexus-setup
+    depends_on:
+      - nexus
+    environment:
+      NEXUS_URL: http://nexus:8081
+      ADMIN_PASSWORD: *stack_admin_password
+      NEXUS_REPOSITORY: pdris
+    command:
+      - /bin/sh
+      - -c
+      - |
+          set -e
+          until curl -sf "$${NEXUS_URL}/service/rest/v1/status" >/dev/null; do
+            echo "Waiting for Nexus API..."
+            sleep 5
+          done
+          ensure_password() {
+            desired="$${ADMIN_PASSWORD}"
+            for current in admin admin123 "$${ADMIN_PASSWORD}"; do
+              if [ -z "$$current" ]; then
+                continue
+              fi
+              if [ "$$current" = "$$desired" ]; then
+                if curl -sf -u "admin:$$current" "$${NEXUS_URL}/service/rest/v1/status" >/dev/null; then
+                  echo "Nexus already uses the desired password."
+                  return 0
+                fi
+                continue
+              fi
+              echo "Attempting to update Nexus password using current password '$$current'..."
+              if curl -sf -u "admin:$$current" \
+                -H "Content-Type: application/json" \
+                -X PUT \
+                -d "{\"oldPassword\":\"$$current\",\"newPassword\":\"$$desired\"}" \
+                "$${NEXUS_URL}/service/rest/v1/security/users/admin/change-password"; then
+                echo "Nexus password updated."
+                return 0
+              fi
+            done
+            echo "Unable to verify or change Nexus password automatically." >&2
+            exit 1
+          }
+
+          ensure_repository() {
+            repo="$${NEXUS_REPOSITORY:-pdris}"
+            desired="$${ADMIN_PASSWORD}"
+            if curl -sf -u "admin:$${desired}" "$${NEXUS_URL}/service/rest/v1/repositories" | grep -q "\"name\":\"$$repo\""; then
+              echo "Nexus repository '$$repo' already exists."
+              return 0
+            fi
+            echo "Creating raw repository '$$repo'..."
+            if curl -sf -u "admin:$${desired}" \
+              -H "Content-Type: application/json" \
+              -X POST \
+              -d "{\"name\":\"$$repo\",\"online\":true,\"storage\":{\"blobStoreName\":\"default\",\"strictContentTypeValidation\":false,\"writePolicy\":\"allow\"}}" \
+              "$${NEXUS_URL}/service/rest/v1/repositories/raw/hosted" >/dev/null; then
+              echo "Repository '$$repo' created."
+            else
+              echo "Failed to create repository '$$repo'." >&2
+              exit 1
+            fi
+          }
+
+          ensure_password
+          ensure_repository
+    restart: "no"
+    networks:
+      - lab
+
+  sonarqube:
+    image: sonarqube:lts-community
+    container_name: sonarqube
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    networks:
+      - lab
+
+  sonarqube-setup:
+    image: curlimages/curl:8.5.0
+    container_name: sonarqube-setup
+    depends_on:
+      - sonarqube
+    environment:
+      SONAR_URL: http://sonarqube:9000
+      ADMIN_PASSWORD: *stack_admin_password
+    command:
+      - /bin/sh
+      - -c
+      - |
+          set -e
+          until curl -sf "$${SONAR_URL}/api/system/status" | grep -q '"status":"UP"'; do
+            echo "Waiting for SonarQube..."
+            sleep 5
+          done
+          desired="$${ADMIN_PASSWORD}"
+          if curl -sf -u "admin:$${desired}" "$${SONAR_URL}/api/system/status" >/dev/null; then
+            echo "SonarQube already uses the desired password."
+            exit 0
+          fi
+          echo "Setting SonarQube admin password..."
+          if curl -sf -u "admin:admin" \
+            -X POST "$${SONAR_URL}/api/users/change_password" \
+            -d "login=admin&previousPassword=admin&password=$${desired}"; then
+            echo "SonarQube password updated."
+            exit 0
+          fi
+          echo "Unable to verify or change SonarQube password automatically." >&2
+          exit 1
+    restart: "no"
+    networks:
+      - lab
+
+volumes:
+  jenkins_home:
+  nexus_data:
+
+networks:
+  lab:
+    name: jenkins_lab_net
